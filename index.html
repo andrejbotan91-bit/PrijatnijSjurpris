@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>System Critical Error</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body onclick="return false;"> <!-- Блокировка действий -->
+
+    <div class="overlay" id="overlay"></div>
+
+    <div class="container" id="main-ui">
+        <h1 id="status-title">Инициализация системы...</h1>
+        <p id="main-text">Проверка целостности данных.</p>
+        <div id="timer-display" class="timer" style="display: none;">60</div>
+    </div>
+
+    <!-- Звук шипения (белый шум) -->
+    <audio id="hiss-sound" loop>
+        <source src="https://www.soundjay.com/communication/static-noise-01.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const statusTitle = document.getElementById('status-title');
+        const mainText = document.getElementById('main-text');
+        const timerDisplay = document.getElementById('timer-display');
+        const body = document.body;
+        const hiss = document.getElementById('hiss-sound');
+
+        // Запуск через 3 секунды
+        setTimeout(() => {
+            hiss.play(); // Начинаем шипеть
+            statusTitle.innerText = "Уничтожение устройства принято 🫡";
+            statusTitle.style.color = "#ff4d4d";
+            mainText.innerText = "Критическая ошибка доступа. Нажатия заблокированы.";
+            timerDisplay.style.display = "block";
+            startTimer(60);
+        }, 3000);
+
+        function startTimer(seconds) {
+            let timeLeft = seconds;
+            const interval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    startDestruction();
+                }
+            }, 1000);
+        }
+
+        function startDestruction() {
+            statusTitle.innerText = "ERROR 404: SYSTEM CORRUPTED";
+            mainText.innerText = "FATAL_ERROR_0x000293";
+            body.classList.add('glitch-bg'); // Начинаем тряску экрана
+            
+            // Добавляем эффект "артефактов" каждые 500мс
+            const destructionInterval = setInterval(() => {
+                createGlitchBlock();
+            }, 300);
+
+            // Через 20 секунд разрушения — финал
+            setTimeout(() => {
+                clearInterval(destructionInterval);
+                hiss.pause();
+                showPrank();
+            }, 20000);
+        }
+
+        function createGlitchBlock() {
+            const block = document.createElement('div');
+            block.className = 'glitch-block';
+            block.style.top = Math.random() * 100 + 'vh';
+            block.style.left = Math.random() * 100 + 'vw';
+            block.style.width = Math.random() * 400 + 'px';
+            block.style.height = Math.random() * 50 + 'px';
+            document.body.appendChild(block);
+            setTimeout(() => block.remove(), 200);
+        }
+
+        function showPrank() {
+            body.className = '';
+            document.querySelectorAll('.glitch-block').forEach(b => b.remove());
+            statusTitle.innerText = "РОЗЫГРЫШ! 😂";
+            statusTitle.style.color = "#4CAF50";
+            mainText.innerText = "Твоё устройство в порядке ( наверное )!";
+            timerDisplay.style.display = "none";
+        }
+    </script>
+</body>
+</html>
