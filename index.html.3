@@ -1,1 +1,245 @@
 
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEME TYCOON: PET ARMY EDITION</title>
+    <style>
+        :root { --gold: #ffcc00; --cyan: #00f3ff; --pink: #ff00ff; --bg: #0a0a0c; --card: #16161d; --gem: #00ff88; }
+        body, html { margin: 0; padding: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+        #auth-screen, .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; align-items: center; justify-content: center; }
+        .auth-card, .admin-card { background: var(--card); padding: 30px; border: 2px solid var(--cyan); border-radius: 20px; width: 320px; text-align: center; }
+        header { height: 90px; background: #000; border-bottom: 2px solid var(--cyan); display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 15px; }
+        .stat-box { text-align: center; }
+        .main-avatar { width: 55px; height: 55px; border-radius: 50%; border: 2px solid var(--cyan); cursor: pointer; }
+        main { height: calc(100vh - 160px); overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .page { display: none; } .page.active { display: block; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .card { background: var(--card); border: 1px solid #444; padding: 10px; border-radius: 12px; text-align: center; position: relative; }
+        .card img { width: 100%; height: 90px; border-radius: 8px; object-fit: cover; }
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; background: var(--cyan); color: #000; margin-top: 5px; }
+        footer { height: 70px; background: #000; border-top: 2px solid var(--gold); display: flex; justify-content: space-around; align-items: center; }
+        .nav-item { background: none; border: none; color: #666; font-weight: bold; cursor: pointer; font-size: 0.7rem; }
+        .nav-item.active { color: var(--gold); }
+        .pet-badge { position: absolute; top: 5px; right: 5px; background: var(--pink); color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="auth-screen">
+    <div class="auth-card">
+        <h2 style="color:var(--cyan)">MEME TYCOON</h2>
+        <input type="text" id="auth-user" style="width:100%; margin-bottom:10px; padding:10px; border-radius:5px;" placeholder="Твій нікнейм">
+        <button onclick="handleAuth()" class="btn">ПОЧАТИ ГРУ</button>
+    </div>
+</div>
+
+<div id="admin-modal" class="modal" style="display:none;">
+    <div class="admin-card">
+        <h3 style="color:#ff4444">🛡️ БОЖЕСТВЕННИЙ РЕЖИМ</h3>
+        <button class="btn" onclick="addRes('bal', 5000000)">+5M Грошей</button>
+        <button class="btn" onclick="addRes('gems', 2000)" style="background:var(--gem)">+2000 Гемів</button>
+        <button class="btn" onclick="closeAdmin()" style="margin-top:10px; background:#444; color:white;">ЗАКРИТИ</button>
+    </div>
+</div>
+
+<div id="game-ui" style="display:none; height:100vh; grid-template-rows: 90px 1fr 70px;">
+    <header>
+        <div class="stat-box">💰 <span id="bal-val">0</span><br><small style="color:var(--cyan)">x<span id="mult-val">1.0</span> буст</small></div>
+        <div class="stat-box"><img id="my-avatar" class="main-avatar" src="" onclick="avatarClick()"><br><b id="stock-timer" style="color:var(--pink)">03:00</b></div>
+        <div class="stat-box">💎 <span id="gem-val">0</span><br><small style="color:var(--gem)">ГЕМИ</small></div>
+    </header>
+
+    <main>
+        <div id="shop-page" class="page active">
+            <h3 style="margin-top:0;">📦 Сток Мемів (Оновлення < 180с)</h3>
+            <div class="grid" id="shop-grid"></div>
+        </div>
+        
+        <div id="pets-page" class="page">
+            <h3 style="color:var(--gem)">⚔️ Твоя Армія Петів</h3>
+            <div id="my-pets" class="grid"></div>
+            <hr style="border:1px solid #333; margin:20px 0;">
+            <h3 style="color:var(--gold)">🛒 Купити Петів (Можна багато!)</h3>
+            <div id="pet-shop" class="grid"></div>
+        </div>
+
+        <div id="extra-page" class="page">
+            <h3>🌐 Рейтинг гравців</h3>
+            <div id="online-list"></div>
+        </div>
+    </main>
+
+    <footer>
+        <button class="nav-item active" onclick="tab('shop-page', this)">МАГАЗИН</button>
+        <button class="nav-item" onclick="tab('pets-page', this)">ПЕТИ</button>
+        <button class="nav-item" onclick="tab('extra-page', this)">ГРАВЦІ</button>
+    </footer>
+</div>
+
+<script>
+let player = null;
+let shopTimer = 180;
+let stockCycle = 0;
+const KEY = 'MEME_TYCOON_ARMY_V2';
+
+const PET_DATA = {
+    "Артур": { price: 500, inc: 0.20, gph: 10, img: "image.png", desc: "+20% доходу" },
+    "Илья": { price: 300, inc: 0.11, gph: 4, img: "https://api.dicebear.com/7.x/bottts/svg?seed=Ilya", desc: "+11% доходу" },
+    "Міша": { price: 200, inc: 0.10, gph: 4, img: "https://api.dicebear.com/7.x/bottts/svg?seed=Misha", desc: "+10% доходу" },
+    "Єгор": { price: 150, inc: 0.09, gph: 5, img: "https://api.dicebear.com/7.x/bottts/svg?seed=Egor", desc: "+9% доходу" }
+};
+
+const MEME_PICS = [
+    "https://i.postimg.cc/7Z6pX0S8/doge.jpg", "https://i.postimg.cc/KjL9tH1Z/pepe.jpg",
+    "https://i.postimg.cc/fyL8p6M7/gigachad.jpg", "https://i.postimg.cc/9f5Y1mPz/grumpy.jpg",
+    "https://i.postimg.cc/T1S0G4Xy/stonks.jpg", "https://i.postimg.cc/vH4vD99B/harold.jpg"
+];
+
+function handleAuth() {
+    const user = document.getElementById('auth-user').value.trim();
+    if(!user) return;
+    player = { name: user, balance: 10000, gems: 500, inv: {}, pets: [], avatar: "Doge" };
+    startGame();
+}
+
+function startGame() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'grid';
+    document.getElementById('my-avatar').src = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.avatar}`;
+    
+    renderShop();
+    renderPetShop();
+
+    setInterval(() => {
+        // Обчислення множника від усіх петів
+        let mult = 1.0;
+        let gph = 0;
+        player.pets.forEach(petName => {
+            mult += PET_DATA[petName].inc;
+            gph += PET_DATA[petName].gph;
+        });
+
+        // Дохід
+        let baseGps = 0;
+        for(let id in player.inv) baseGps += id * 3 * player.inv[id];
+        player.balance += (baseGps * mult);
+        
+        // Шанс на геми
+        if(Math.random() < 0.1) player.gems += gph;
+
+        shopTimer--;
+        if(shopTimer <= 0) { shopTimer = 180; stockCycle++; renderShop(); }
+
+        updateUI(mult);
+    }, 1000);
+}
+
+function updateUI(mult) {
+    document.getElementById('bal-val').innerText = Math.floor(player.balance).toLocaleString();
+    document.getElementById('gem-val').innerText = player.gems;
+    document.getElementById('mult-val').innerText = mult.toFixed(2);
+    
+    let m = Math.floor(shopTimer/60), s = shopTimer%60;
+    document.getElementById('stock-timer').innerText = `${m}:${s<10?'0':''}${s}`;
+}
+
+function renderShop() {
+    const grid = document.getElementById('shop-grid');
+    grid.innerHTML = "";
+    let items = [];
+
+    if(stockCycle % 5 === 0) items.push({ id: 50, count: Math.floor(Math.random() * 5) + 1 });
+
+    for(let i = 0; i < 10; i++) {
+        let id = Math.floor(Math.random() * 200) + 1;
+        let count = (id <= 50) ? Math.floor(Math.random()*5)+1 : (id <= 100) ? Math.floor(Math.random()*3)+1 : (id <= 150) ? Math.floor(Math.random()*2)+1 : 1;
+        items.push({ id, count });
+    }
+
+    items.forEach(item => {
+        let price = item.id * 400;
+        grid.innerHTML += `
+            <div class="card">
+                <img src="${MEME_PICS[item.id % MEME_PICS.length]}">
+                <b>Мем №${item.id}</b><br>
+                <small>Сток: ${item.count}шт</small>
+                <button class="btn" onclick="buyMeme(${item.id}, ${price}, this)">$${price}</button>
+            </div>
+        `;
+    });
+}
+
+function buyMeme(id, p, btn) {
+    if(player.balance >= p) {
+        player.balance -= p;
+        player.inv[id] = (player.inv[id] || 0) + 1;
+        btn.innerText = "КУПЛЕНО!";
+        btn.disabled = true;
+    }
+}
+
+function renderPetShop() {
+    const shop = document.getElementById('pet-shop');
+    shop.innerHTML = Object.keys(PET_DATA).map(name => `
+        <div class="card">
+            <img src="${PET_DATA[name].img}" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=${name}'">
+            <b>${name}</b><br>
+            <small>${PET_DATA[name].desc}</small>
+            <button class="btn" style="background:var(--gem)" onclick="buyPet('${name}')">${PET_DATA[name].price} 💎</button>
+        </div>
+    `).join('');
+    
+    renderMyPets();
+}
+
+function buyPet(name) {
+    if(player.gems >= PET_DATA[name].price) {
+        player.gems -= PET_DATA[name].price;
+        player.pets.push(name);
+        renderMyPets();
+    } else {
+        alert("Не вистачає гемів!");
+    }
+}
+
+function renderMyPets() {
+    const myGrid = document.getElementById('my-pets');
+    if(player.pets.length === 0) {
+        myGrid.innerHTML = "<p>У тебе ще немає петів</p>";
+        return;
+    }
+    
+    // Групуємо петів для відображення кількості, але вони все одно рахуються окремо
+    let counts = {};
+    player.pets.forEach(p => counts[p] = (counts[p] || 0) + 1);
+
+    myGrid.innerHTML = Object.keys(counts).map(name => `
+        <div class="card">
+            <div class="pet-badge">x${counts[name]}</div>
+            <img src="${PET_DATA[name].img}" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=${name}'">
+            <b>${name}</b>
+        </div>
+    `).join('');
+}
+
+function tab(id, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+}
+
+// ADMIN
+let ac = 0;
+function avatarClick() {
+    ac++;
+    if(ac >= 3) { document.getElementById('admin-modal').style.display='flex'; ac=0; }
+    setTimeout(() => ac=0, 2000);
+}
+function closeAdmin() { document.getElementById('admin-modal').style.display='none'; }
+function addRes(t, a) { if(t==='bal') player.balance += a; else player.gems += a; }
+</script>
+</body>
+</html>
