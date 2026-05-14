@@ -1,92 +1,301 @@
+
+    
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>System Critical Error</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEME TYCOON FINAL</title>
+    <style>
+        :root { 
+            --gold: #ffcc00; --cyan: #00f3ff; --pink: #ff00ff; --bg: #0a0a0c; --card: #16161d;
+            --gem: #00ff88;
+        }
+        body, html { margin: 0; padding: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+        
+        /* AUTH SCREEN */
+        #auth-screen { position: fixed; inset: 0; background: #000; z-index: 3000; display: flex; align-items: center; justify-content: center; }
+        .auth-card { background: var(--card); padding: 30px; border: 2px solid var(--cyan); border-radius: 20px; width: 300px; text-align: center; }
+        .auth-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; }
+        .auth-tab { flex: 1; padding: 10px; cursor: pointer; color: #666; font-weight: bold; transition: 0.3s; }
+        .auth-tab.active { color: var(--cyan); border-bottom: 3px solid var(--cyan); }
+        .auth-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; margin-bottom: 10px; background: #000; color: white; box-sizing: border-box; }
+
+        /* HEADER */
+        header { height: 90px; background: #000; border-bottom: 2px solid var(--cyan); display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 15px; }
+        .stat-box { text-align: center; }
+        .main-avatar { width: 55px; height: 55px; border-radius: 50%; border: 2px solid var(--cyan); cursor: pointer; background: #111; object-fit: cover; }
+
+        /* CONTENT */
+        main { height: calc(100vh - 160px); overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .card { background: var(--card); border: 1px solid #444; padding: 10px; border-radius: 12px; text-align: center; }
+        .card img { width: 100%; height: 80px; border-radius: 8px; object-fit: cover; }
+
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; background: var(--cyan); color: #000; margin-top: 5px; }
+        footer { height: 70px; background: #000; border-top: 2px solid var(--gold); display: flex; justify-content: space-around; align-items: center; }
+        .nav-item { background: none; border: none; color: #666; font-weight: bold; cursor: pointer; font-size: 0.7rem; }
+        .nav-item.active { color: var(--gold); }
+        
+        #inspect-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; display: none; padding: 20px; }
+    </style>
 </head>
-<body onclick="return false;"> <!-- Блокировка действий -->
+<body>
 
-    <div class="overlay" id="overlay"></div>
+<div id="auth-screen">
+    <div class="auth-card">
+        <div class="auth-tabs">
+            <div id="tab-login" class="auth-tab active" onclick="setAuthMode('login')">УВІЙТИ</div>
+            <div id="tab-reg" class="auth-tab" onclick="setAuthMode('reg')">РЕЄСТРАЦІЯ</div>
+        </div>
+        <input type="text" id="auth-user" class="auth-input" placeholder="Нікнейм">
+        <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
+        <button id="auth-btn" onclick="handleAuth()" class="btn">УВІЙТИ В ГРУ</button>
+    </div>
+</div>
 
-    <div class="container" id="main-ui">
-        <h1 id="status-title">Инициализация системы...</h1>
-        <p id="main-text">Проверка целостности данных.</p>
-        <div id="timer-display" class="timer" style="display: none;">60</div>
+<div id="game-ui" style="display:none; height:100vh; grid-template-rows: 90px 1fr 70px;">
+    <header>
+        <div class="stat-box">
+            <div style="color:var(--gold); font-weight:900;">💰 <span id="bal-val">0</span></div>
+            <div style="font-size:0.7rem; color:var(--cyan);">+<span id="gps-val">0</span>/с</div>
+        </div>
+        <div class="stat-box">
+            <img id="my-avatar" class="main-avatar" src="" onclick="playAvatarSound()">
+            <div id="stock-timer" style="color:var(--pink); font-size:0.7rem; font-weight:bold;">СТОК: 03:00</div>
+        </div>
+        <div class="stat-box">
+            <div style="color:var(--gem); font-weight:900;">💎 <span id="gem-val">0</span></div>
+            <div style="font-size:0.7rem; color:var(--gem);">ГЕМИ</div>
+        </div>
+    </header>
+
+    <main>
+        <div id="shop-page" class="page active">
+            <h3 style="margin-top:0;">🛒 Ринок Мемів</h3>
+            <div class="grid" id="shop-grid"></div>
+        </div>
+
+        <div id="pets-page" class="page">
+            <h3 style="color:var(--gem); margin-top:0;">🐾 Твої Пети</h3>
+            <div id="my-pets-list"></div>
+            <hr style="border:1px solid #222; margin:15px 0;">
+            <h3>Крамниця Петів</h3>
+            <div class="grid" id="pet-shop-grid"></div>
+        </div>
+
+        <div id="avatar-page" class="page">
+            <h3 style="color:var(--cyan); margin-top:0;">🎭 Аватарки (100 💎)</h3>
+            <div class="grid" id="avatar-grid"></div>
+        </div>
+
+        <div id="extra-page" class="page">
+            <h3 style="color:var(--pink); margin-top:0;">🌐 Гравці</h3>
+            <div id="online-list"></div>
+        </div>
+    </main>
+
+    <div id="inspect-overlay">
+        <button onclick="closeInspect()" class="btn" style="width:100px; background:red; color:white; margin-bottom:20px;">НАЗАД</button>
+        <div id="inspect-content"></div>
     </div>
 
-    <!-- Звук шипения (белый шум) -->
-    <audio id="hiss-sound" loop>
-        <source src="https://www.soundjay.com/communication/static-noise-01.mp3" type="audio/mpeg">
-    </audio>
+    <footer>
+        <button class="nav-item active" onclick="tab('shop-page', this)">РИНОК</button>
+        <button class="nav-item" onclick="tab('pets-page', this)">ПЕТИ</button>
+        <button class="nav-item" onclick="tab('avatar-page', this)">АВАТАРКИ</button>
+        <button class="nav-item" onclick="tab('extra-page', this)">ОНЛАЙН</button>
+    </footer>
+</div>
 
-    <script>
-        const statusTitle = document.getElementById('status-title');
-        const mainText = document.getElementById('main-text');
-        const timerDisplay = document.getElementById('timer-display');
-        const body = document.body;
-        const hiss = document.getElementById('hiss-sound');
+<script>
+let currentMode = 'login';
+let player = null;
+let shopTimer = 180;
+const KEY = 'MEME_TYCOON_V12';
 
-        // Запуск через 3 секунды
-        setTimeout(() => {
-            hiss.play(); // Начинаем шипеть
-            statusTitle.innerText = "Уничтожение устройства принято 🫡";
-            statusTitle.style.color = "#ff4d4d";
-            mainText.innerText = "Критическая ошибка доступа. Нажатия заблокированы.";
-            timerDisplay.style.display = "block";
-            startTimer(60);
-        }, 3000);
+const PETS = {
+    "Артур": { price: 500, inc: 0.15, gph: 8, desc: "+15% грн, +8 гемів. Шанс 40% крадіжки." },
+    "Илья": { price: 300, inc: 0.11, gph: 4, desc: "+11% грн, +4 геми. Краде 1 гем." },
+    "Міша": { price: 200, inc: 0.10, gph: 4, desc: "+10% грн, +4 геми." },
+    "Єгор": { price: 150, inc: 0.09, gph: 5, desc: "+9% грн, +5 гемів. 'Я Єгорка'" }
+};
 
-        function startTimer(seconds) {
-            let timeLeft = seconds;
-            const interval = setInterval(() => {
-                timeLeft--;
-                timerDisplay.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    startDestruction();
-                }
-            }, 1000);
-        }
+function setAuthMode(mode) {
+    currentMode = mode;
+    document.getElementById('tab-login').classList.toggle('active', mode === 'login');
+    document.getElementById('tab-reg').classList.toggle('active', mode === 'reg');
+    document.getElementById('auth-btn').innerText = mode === 'login' ? 'УВІЙТИ В ГРУ' : 'СТВОРИТИ АККАУНТ';
+}
 
-        function startDestruction() {
-            statusTitle.innerText = "ERROR 404: SYSTEM CORRUPTED";
-            mainText.innerText = "FATAL_ERROR_0x000293";
-            body.classList.add('glitch-bg'); // Начинаем тряску экрана
-            
-            // Добавляем эффект "артефактов" каждые 500мс
-            const destructionInterval = setInterval(() => {
-                createGlitchBlock();
-            }, 300);
+function handleAuth() {
+    const user = document.getElementById('auth-user').value.trim();
+    const pass = document.getElementById('auth-pass').value.trim();
+    if(!user || !pass) return alert("Введіть логін та пароль!");
 
-            // Через 20 секунд разрушения — финал
-            setTimeout(() => {
-                clearInterval(destructionInterval);
-                hiss.pause();
-                showPrank();
-            }, 20000);
-        }
+    let users = JSON.parse(localStorage.getItem(KEY) || "[]");
+    let existing = users.find(u => u.name === user);
 
-        function createGlitchBlock() {
-            const block = document.createElement('div');
-            block.className = 'glitch-block';
-            block.style.top = Math.random() * 100 + 'vh';
-            block.style.left = Math.random() * 100 + 'vw';
-            block.style.width = Math.random() * 400 + 'px';
-            block.style.height = Math.random() * 50 + 'px';
-            document.body.appendChild(block);
-            setTimeout(() => block.remove(), 200);
-        }
+    if(currentMode === 'reg') {
+        if(existing) return alert("Цей нік вже зайнятий!");
+        player = { name: user, pass: pass, balance: 2000, gems: 50, inv: {}, pets: [], avatar: "Doge", av_list: ["Doge"], lastSeen: Date.now() };
+        users.push(player);
+        localStorage.setItem(KEY, JSON.stringify(users));
+        alert("Аккаунт створено! Тепер увійдіть.");
+        setAuthMode('login');
+    } else {
+        if(!existing || existing.pass !== pass) return alert("Невірний логін або пароль!");
+        player = existing;
+        startGame();
+    }
+}
 
-        function showPrank() {
-            body.className = '';
-            document.querySelectorAll('.glitch-block').forEach(b => b.remove());
-            statusTitle.innerText = "РОЗЫГРЫШ! 😂";
-            statusTitle.style.color = "#4CAF50";
-            mainText.innerText = "Твоё устройство в порядке ( наверное )!";
-            timerDisplay.style.display = "none";
-        }
-    </script>
+function startGame() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'grid';
+    document.getElementById('my-avatar').src = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.avatar}`;
+    
+    renderShop();
+    renderPetShop();
+    renderAvatarShop();
+    
+    setInterval(() => {
+        let base = 0;
+        for(let id in player.inv) base += id * 5 * player.inv[id];
+        let m = 1, g = 0;
+        player.pets.forEach(p => { m += PETS[p].inc; g += PETS[p].gph; });
+        
+        let total = base * m;
+        player.balance += total;
+        if(Math.random() < 0.02) player.gems += g; // Пасивні геми
+
+        shopTimer--;
+        if(shopTimer <= 0) shopTimer = 180;
+        
+        updateUI(total);
+        save();
+    }, 1000);
+}
+
+function updateUI(gps) {
+    document.getElementById('bal-val').innerText = Math.floor(player.balance).toLocaleString();
+    document.getElementById('gem-val').innerText = player.gems;
+    document.getElementById('gps-val').innerText = Math.floor(gps);
+    let min = Math.floor(shopTimer/60), sec = shopTimer%60;
+    document.getElementById('stock-timer').innerText = `СТОК: ${min}:${sec<10?'0':''}${sec}`;
+    renderOnline();
+}
+
+function speak(text) {
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.pitch = 0.7; // Чоловічий бас
+    msg.lang = 'uk-UA';
+    window.speechSynthesis.speak(msg);
+}
+
+function playAvatarSound() {
+    if(player.avatar === "Потужнометр") speak("Критично високий рівень потужності");
+    else speak("Мем активовано");
+}
+
+function renderShop() {
+    const grid = document.getElementById('shop-grid');
+    grid.innerHTML = "";
+    for(let i=0; i<10; i++) {
+        let id = Math.floor(Math.random()*199)+1;
+        grid.innerHTML += `<div class="card"><img src="https://picsum.photos/seed/${id}/150/80"><b>Мем #${id}</b><br><button class="btn" onclick="buyMeme(${id}, ${id*500})">$${id*500}</button></div>`;
+    }
+}
+
+function buyMeme(id, price) {
+    if(player.balance >= price) {
+        player.balance -= price;
+        player.inv[id] = (player.inv[id] || 0) + 1;
+        alert("Придбано!");
+    }
+}
+
+function renderPetShop() {
+    document.getElementById('pet-shop-grid').innerHTML = Object.keys(PETS).map(name => `
+        <div class="card"><b>${name}</b><br><small>${PETS[name].price} 💎</small><button class="btn" onclick="buyPet('${name}')">КУПИТИ</button></div>
+    `).join('');
+    document.getElementById('my-pets-list').innerHTML = player.pets.map(name => `
+        <div class="card" onclick="clickPet('${name}', '${player.name}')"><b>${name}</b><br><small>${PETS[name].desc}</small></div>
+    `).join('');
+}
+
+function buyPet(n) {
+    if(player.gems >= PETS[n].price && !player.pets.includes(n)) {
+        player.gems -= PETS[n].price; player.pets.push(n); renderPetShop();
+    }
+}
+
+function clickPet(p, owner) {
+    if(p === "Артур") speak("Критично високий рівень Артурності");
+    if(p === "Єгор") speak("Я Єгорка");
+    if(owner !== player.name) {
+        let users = JSON.parse(localStorage.getItem(KEY));
+        let o = users.find(u => u.name === owner);
+        if(p === "Артур" && Math.random() < 0.4 && player.gems >= 3) { player.gems -= 3; o.gems += 3; alert("Вкрадено 3 геми!"); }
+        if(p === "Илья" && player.gems >= 1) { player.gems -= 1; o.gems += 1; alert("Забрано 1 гем!"); }
+        localStorage.setItem(KEY, JSON.stringify(users));
+    }
+}
+
+function renderAvatarShop() {
+    const avs = ["Doge", "Cyber", "Knight", "Robot", "Alien", "Wizard", "Ninja", "Zombie", "King", "Потужнометр"];
+    document.getElementById('avatar-grid').innerHTML = avs.map(av => `
+        <div class="card" onclick="buyAvatar('${av}')">
+            <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=${av}" style="width:40px; height:40px;">
+            <div style="font-size:0.7rem;">${player.av_list.includes(av)?'ОДЯГТИ':'100 💎'}</div>
+        </div>
+    `).join('');
+}
+
+function buyAvatar(av) {
+    if(player.av_list.includes(av)) {
+        player.avatar = av;
+        document.getElementById('my-avatar').src = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${av}`;
+    } else if(player.gems >= 100) {
+        player.gems -= 100; player.av_list.push(av);
+    }
+    renderAvatarShop();
+}
+
+function renderOnline() {
+    const users = JSON.parse(localStorage.getItem(KEY) || "[]");
+    document.getElementById('online-list').innerHTML = users.map(u => `
+        <div style="background:#111; padding:10px; margin-bottom:5px; border-radius:8px; display:flex; align-items:center; gap:10px;">
+            <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=${u.avatar}" style="width:25px; border-radius:50%;">
+            <b onclick="inspect('${u.name}')" style="color:var(--cyan); cursor:pointer;">${u.name}</b>
+        </div>
+    `).join('');
+}
+
+function inspect(name) {
+    const u = JSON.parse(localStorage.getItem(KEY)).find(x => x.name === name);
+    document.getElementById('inspect-content').innerHTML = `<h2>${u.name}</h2><p>💰 $${Math.floor(u.balance)}</p><p>💎 ${u.gems}</p>
+    ${u.pets.map(p => `<div class="card" onclick="clickPet('${p}', '${u.name}')">${p}</div>`).join('')}`;
+    document.getElementById('inspect-overlay').style.display = 'block';
+}
+
+function closeInspect() { document.getElementById('inspect-overlay').style.display = 'none'; }
+
+function tab(id, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+}
+
+function save() {
+    let users = JSON.parse(localStorage.getItem(KEY));
+    let idx = users.findIndex(u => u.name === player.name);
+    users[idx] = player;
+    localStorage.setItem(KEY, JSON.stringify(users));
+}
+</script>
 </body>
 </html>
