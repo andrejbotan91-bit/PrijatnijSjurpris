@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEME TYCOON: ADMIN EDITION</title>
+    <style>
+        :root { 
+            --gold: #ffcc00; --cyan: #00f3ff; --pink: #ff00ff; --bg: #0a0a0c; --card: #16161d;
+            --gem: #00ff88;
+        }
+        body, html { margin: 0; padding: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+        
+        /* AUTH & ADMIN MODAL */
+        #auth-screen, .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 3000; display: flex; align-items: center; justify-content: center; }
+        .auth-card, .admin-card { background: var(--card); padding: 30px; border: 2px solid var(--cyan); border-radius: 20px; width: 320px; text-align: center; }
+        .auth-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; }
+        .auth-tab { flex: 1; padding: 10px; cursor: pointer; color: #666; font-weight: bold; }
+        .auth-tab.active { color: var(--cyan); border-bottom: 3px solid var(--cyan); }
+        .auth-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; margin-bottom: 10px; background: #000; color: white; box-sizing: border-box; }
+
+        /* UI ELEMENTS */
+        header { height: 90px; background: #000; border-bottom: 2px solid var(--cyan); display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 15px; }
+        .stat-box { text-align: center; }
+        .main-avatar { width: 55px; height: 55px; border-radius: 50%; border: 2px solid var(--cyan); cursor: pointer; background: #111; object-fit: cover; }
+        
+        main { height: calc(100vh - 160px); overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .card { background: var(--card); border: 1px solid #444; padding: 10px; border-radius: 12px; text-align: center; position: relative; }
+        .card img { width: 100%; height: 80px; border-radius: 8px; object-fit: cover; }
+
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; background: var(--cyan); color: #000; margin-top: 5px; }
+        .admin-btn { background: #ff4444; color: white; margin-top: 10px; }
+        
+        footer { height: 70px; background: #000; border-top: 2px solid var(--gold); display: flex; justify-content: space-around; align-items: center; }
+        .nav-item { background: none; border: none; color: #666; font-weight: bold; cursor: pointer; font-size: 0.7rem; }
+        .nav-item.active { color: var(--gold); }
+    </style>
+</head>
+<body>
+
+<!-- ВХІД -->
+<div id="auth-screen">
+    <div class="auth-card">
+        <div class="auth-tabs">
+            <div id="tab-login" class="auth-tab active" onclick="setAuthMode('login')">УВІЙТИ</div>
+            <div id="tab-reg" class="auth-tab" onclick="setAuthMode('reg')">РЕЄСТРАЦІЯ</div>
+        </div>
+        <input type="text" id="auth-user" class="auth-input" placeholder="Нікнейм">
+        <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
+        <button id="auth-btn" onclick="handleAuth()" class="btn">УВІЙТИ</button>
+    </div>
+</div>
+
+<!-- АДМІН ПАНЕЛЬ -->
+<div id="admin-modal" class="modal" style="display:none;">
+    <div class="admin-card">
+        <h2 style="color:#ff4444; margin-top:0;">🛡️ ADMIN PANEL</h2>
+        <p>Керування твоїм аккаунтом:</p>
+        <button class="btn" onclick="addRes('bal', 1000000)">+1M Грошей</button>
+        <button class="btn" onclick="addRes('gems', 1000)" style="background:var(--gem)">+1000 Гемів</button>
+        <hr style="border:1px solid #333; margin:15px 0;">
+        <button class="btn admin-btn" onclick="closeAdmin()">ЗАКРИТИ</button>
+    </div>
+</div>
+
+<div id="game-ui" style="display:none; height:100vh; grid-template-rows: 90px 1fr 70px;">
+    <header>
+        <div class="stat-box">
+            <div style="color:var(--gold); font-weight:900;">💰 <span id="bal-val">0</span></div>
+            <div style="font-size:0.7rem; color:var(--cyan);">+<span id="gps-val">0</span>/с</div>
+        </div>
+        <div class="stat-box">
+            <img id="my-avatar" class="main-avatar" src="" onclick="avatarClick()">
+            <div id="stock-timer" style="color:var(--pink); font-size:0.7rem; font-weight:bold;">СТОК: 03:00</div>
+        </div>
+        <div class="stat-box">
+            <div style="color:var(--gem); font-weight:900;">💎 <span id="gem-val">0</span></div>
+            <div style="font-size:0.7rem; color:var(--gem);">ГЕМИ</div>
+        </div>
+    </header>
+
+    <main>
+        <div id="shop-page" class="page active">
+            <h3 style="margin-top:0;">🛒 Ринок</h3>
+            <div class="grid" id="shop-grid"></div>
+        </div>
+        <div id="pets-page" class="page">
+            <h3 style="color:var(--gem); margin-top:0;">🐾 Твої Пети</h3>
+            <div id="my-pets-list"></div>
+            <hr style="border:1px solid #222; margin:15px 0;">
+            <h3>Крамниця Петів</h3>
+            <div class="grid" id="pet-shop-grid"></div>
+        </div>
+        <div id="extra-page" class="page">
+            <h3 style="color:var(--pink); margin-top:0;">🌐 Гравці (Адмін доступ)</h3>
+            <div id="online-list"></div>
+        </div>
+    </main>
+
+    <footer>
+        <button class="nav-item active" onclick="tab('shop-page', this)">РИНОК</button>
+        <button class="nav-item" onclick="tab('pets-page', this)">ПЕТИ</button>
+        <button class="nav-item" onclick="tab('extra-page', this)">ГРАВЦІ</button>
+    </footer>
+</div>
+
+<script>
+let currentMode = 'login';
+let player = null;
+let shopTimer = 180;
+let clickCount = 0;
+const KEY = 'MEME_TYCOON_V13_ADMIN';
+
+const PETS = {
+    "Артур": { price: 500, inc: 0.15, gph: 8, desc: "+15% грн, +8 гемів. Шанс 40% крадіжки." },
+    "Илья": { price: 300, inc: 0.11, gph: 4, desc: "+11% грн, +4 геми. Краде 1 гем." },
+    "Міша": { price: 200, inc: 0.10, gph: 4, desc: "+10% грн, +4 геми." },
+    "Єгор": { price: 150, inc: 0.09, gph: 5, desc: "+9% грн, +5 гемів. 'Я Єгорка'" }
+};
+
+function setAuthMode(mode) {
+    currentMode = mode;
+    document.getElementById('tab-login').classList.toggle('active', mode === 'login');
+    document.getElementById('tab-reg').classList.toggle('active', mode === 'reg');
+    document.getElementById('auth-btn').innerText = mode === 'login' ? 'УВІЙТИ' : 'СТВОРИТИ АККАУНТ';
+}
+
+function handleAuth() {
+    const user = document.getElementById('auth-user').value.trim();
+    const pass = document.getElementById('auth-pass').value.trim();
+    if(!user || !pass) return alert("Введіть логін та пароль!");
+
+    let users = JSON.parse(localStorage.getItem(KEY) || "[]");
+    let existing = users.find(u => u.name === user);
+
+    if(currentMode === 'reg') {
+        if(existing) return alert("Нік зайнятий!");
+        player = { name: user, pass: pass, balance: 2000, gems: 50, inv: {}, pets: [], avatar: "Doge", av_list: ["Doge"] };
+        users.push(player);
+        localStorage.setItem(KEY, JSON.stringify(users));
+        alert("Успіх! Тепер увійдіть.");
+        setAuthMode('login');
+    } else {
+        if(!existing || existing.pass !== pass) return alert("Помилка!");
+        player = existing;
+        startGame();
+    }
+}
+
+// АДМІН ФУНКЦІЇ
+function avatarClick() {
+    clickCount++;
+    if(clickCount >= 3) {
+        document.getElementById('admin-modal').style.display = 'flex';
+        clickCount = 0;
+    }
+    setTimeout(() => clickCount = 0, 2000); // скидання кліків через 2 сек
+    playAvatarSound();
+}
+
+function closeAdmin() { document.getElementById('admin-modal').style.display = 'none'; }
+
+function addRes(type, amt) {
+    if(type === 'bal') player.balance += amt;
+    if(type === 'gems') player.gems += amt;
+    save();
+}
+
+function adminEditPlayer(name) {
+    let users = JSON.parse(localStorage.getItem(KEY));
+    let uIdx = users.findIndex(x => x.name === name);
+    let action = prompt(`Редагування ${name}:\n1. Дати 100к грн\n2. Дати 500 гемів\n3. Видалити гравця`);
+    
+    if(action === '1') users[uIdx].balance += 100000;
+    if(action === '2') users[uIdx].gems += 500;
+    if(action === '3') users.splice(uIdx, 1);
+    
+    localStorage.setItem(KEY, JSON.stringify(users));
+    renderOnline();
+}
+
+function startGame() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'grid';
+    document.getElementById('my-avatar').src = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.avatar}`;
+    
+    renderShop();
+    renderPetShop();
+    
+    setInterval(() => {
+        let base = 0;
+        for(let id in player.inv) base += id * 5 * player.inv[id];
+        let mult = 1, gph = 0;
+        player.pets.forEach(p => { mult += PETS[p].inc; gph += PETS[p].gph; });
+        
+        player.balance += (base * mult);
+        if(Math.random() < 0.01) player.gems += gph;
+
+        shopTimer--;
+        if(shopTimer <= 0) shopTimer = 180;
+        
+        updateUI(base * mult);
+        save();
+    }, 1000);
+}
+
+function updateUI(gps) {
+    document.getElementById('bal-val').innerText = Math.floor(player.balance).toLocaleString();
+    document.getElementById('gem-val').innerText = player.gems;
+    document.getElementById('gps-val').innerText = Math.floor(gps);
+    let min = Math.floor(shopTimer/60), sec = shopTimer%60;
+    document.getElementById('stock-timer').innerText = `СТОК: ${min}:${sec<10?'0':''}${sec}`;
+    renderOnline();
+}
+
+function renderOnline() {
+    const users = JSON.parse(localStorage.getItem(KEY) || "[]");
+    document.getElementById('online-list').innerHTML = users.map(u => `
+        <div style="background:#111; padding:10px; margin-bottom:5px; border-radius:8px; display:flex; align-items:center; justify-content:space-between;">
+            <div><b>${u.name}</b> (💰${Math.floor(u.balance)})</div>
+            <button class="btn" style="width:70px; background:orange; font-size:10px;" onclick="adminEditPlayer('${u.name}')">EDIT</button>
+        </div>
+    `).join('');
+}
+
+function renderShop() {
+    const grid = document.getElementById('shop-grid');
+    grid.innerHTML = "";
+    for(let i=1; i<11; i++) {
+        let id = Math.floor(Math.random()*199)+1;
+        grid.innerHTML += `<div class="card"><img src="https://picsum.photos/seed/${id}/150/80"><b>Мем #${id}</b><button class="btn" onclick="buyMeme(${id}, ${id*500})">$${id*500}</button></div>`;
+    }
+}
+
+function buyMeme(id, price) {
+    if(player.balance >= price) {
+        player.balance -= price;
+        player.inv[id] = (player.inv[id] || 0) + 1;
+    }
+}
+
+function renderPetShop() {
+    document.getElementById('pet-shop-grid').innerHTML = Object.keys(PETS).map(name => `
+        <div class="card"><b>${name}</b><br><button class="btn" onclick="buyPet('${name}')">${PETS[name].price} 💎</button></div>
+    `).join('');
+    document.getElementById('my-pets-list').innerHTML = player.pets.map(name => `
+        <div class="card"><b>${name}</b></div>
+    `).join('');
+}
+
+function buyPet(n) {
+    if(player.gems >= PETS[n].price && !player.pets.includes(n)) {
+        player.gems -= PETS[n].price; player.pets.push(n); renderPetShop();
+    }
+}
+
+function speak(text) {
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.pitch = 0.7; msg.lang = 'uk-UA';
+    window.speechSynthesis.speak(msg);
+}
+
+function playAvatarSound() {
+    if(player.avatar === "Потужнометр") speak("Критично високий рівень потужності");
+    else speak("Мем активовано");
+}
+
+function tab(id, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+}
+
+function save() {
+    let users = JSON.parse(localStorage.getItem(KEY));
+    let idx = users.findIndex(u => u.name === player.name);
+    users[idx] = player;
+    localStorage.setItem(KEY, JSON.stringify(users));
+}
+</script>
+</body>
+</html>
