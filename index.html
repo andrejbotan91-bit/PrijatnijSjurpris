@@ -1,1 +1,292 @@
+Создай файл, где написан весь майнкрафт ( но без серверов ) но вместо них есть кнопка МОДЫ и там будет ии чат и я могу попросить чтобы он создал мод и подключил к моему майну или поисал в интерн7етре и подключить. добавь текстуры. Они точног такиеже, но чтобы они не были плогиатом, поменяй в них один пиксель на болие тёмный
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEME TYCOON: ENTERPRISE EDITION</title>
+    <style>
+        :root {
+            --bg-deep: #060608;
+            --bg-surface: #111116;
+            --bg-card: #191922;
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.3);
+            --gold: #ffcc00;
+            --gold-glow: rgba(255, 204, 0, 0.3);
+            --pink: #ff00ff;
+            --pink-glow: rgba(255, 0, 255, 0.3);
+            --gem: #00ff88;
+            --gem-glow: rgba(0, 255, 136, 0.3);
+            --danger: #ff4444;
+            --text-main: #ffffff;
+            --text-muted: #8e8e9f;
+            --border-radius-lg: 20px;
+            --border-radius-md: 12px;
+            --border-radius-sm: 6px;
+            --transition-fast: 0.2s ease;
+            --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Scrollbar Optimization */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-deep);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-card);
+            border-radius: var(--border-radius-sm);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--cyan);
+        }
+
+        /* Animations */
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 10px var(--cyan-glow); }
+            50% { box-shadow: 0 0 20px var(--cyan); }
+            100% { box-shadow: 0 0 10px var(--cyan-glow); }
+        }
+
+        @keyframes floatEffect {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes flashSuccess {
+            0% { background-color: rgba(0, 255, 136, 0.2); }
+            100% { background-color: transparent; }
+        }
+
+        /* Layout */
+        #app-container {
+            display: grid;
+            grid-template-rows: 90px 1fr 75px;
+            height: 100vh;
+            width: 100vw;
+            box-sizing: border-box;
+        }
+
+        /* Authentication Screen */
+        #auth-screen {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, #111118 0%, #050507 100%);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition-normal);
+        }
+
+        .auth-container {
+            background: var(--bg-surface);
+            border: 2px solid var(--cyan);
+            border-radius: var(--border-radius-lg);
+            padding: 40px;
+            width: 360px;
+            box-shadow: 0 0 30px var(--cyan-glow);
+            text-align: center;
+            animation: floatEffect 4s ease-in-out infinite;
+        }
+
+        .auth-logo {
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            background: linear-gradient(45deg, var(--cyan), var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-control {
+            width: 100%;
+            padding: 14px;
+            background: var(--bg-deep);
+            border: 1px solid #2d2d3d;
+            border-radius: var(--border-radius-md);
+            color: var(--text-main);
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: var(--transition-fast);
+        }
+
+        .input-control:focus {
+            outline: none;
+            border-color: var(--cyan);
+            box-shadow: 0 0 10px var(--cyan-glow);
+        }
+
+        /* Buttons Framework */
+        .btn-ui {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: var(--border-radius-md);
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-cyan { background: var(--cyan); color: #000; }
+        .btn-cyan:hover { background: #00c8ff; box-shadow: 0 0 15px var(--cyan); transform: translateY(-2px); }
+        .btn-cyan:active { transform: translateY(0); }
+
+        .btn-gold { background: var(--gold); color: #000; }
+        .btn-gold:hover { background: #ffd633; box-shadow: 0 0 15px var(--gold); transform: translateY(-2px); }
+
+        .btn-pink { background: var(--pink); color: #fff; }
+        .btn-pink:hover { background: #ff33ff; box-shadow: 0 0 15px var(--pink); transform: translateY(-2px); }
+
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #ff2222; }
+
+        .btn-disabled {
+            background: #2d2d3d !important;
+            color: var(--text-muted) !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+    </style>
+</head>
+<body>
+
+<script>
+// Глобальна ігрова конфігурація та статичні структури даних
+const CONFIG = {
+    DATABASE_KEY_PREFIX: 'MEME_TYCOON_STATE_V4_',
+    STOCK_REFRESH_INTERVAL: 180, // Секунди (3 хвилини)
+    SAVE_INTERVAL: 2000, // Частота автозбереження в мс
+    BASE_CLICK_MULTIPLIER: 1.0
+};
+
+const PET_REGISTRY = {
+    "Єгор": { 
+        id: "pet_egor",
+        price: 150, 
+        incomeMultiplier: 0.09, 
+        gemsPerPeriod: 5, 
+        asset: "https://api.dicebear.com/7.x/bottts/svg?seed=Egor",
+        description: "+9% до загального доходу, генерує +5 гемів пасивно.",
+        soundbite: null 
+    },
+    "Міша": { 
+        id: "pet_misha",
+        price: 200, 
+        incomeMultiplier: 0.10, 
+        gemsPerPeriod: 4, 
+        asset: "https://api.dicebear.com/7.x/bottts/svg?seed=Misha",
+        description: "+10% до загального доходу, генерує +4 гемів пасивно.",
+        soundbite: null 
+    },
+    "Арсеній": { 
+        id: "pet_arsen",
+        price: 400, 
+        incomeMultiplier: 0.08, 
+        gemsPerPeriod: 3, 
+        asset: "https://api.dicebear.com/7.x/bottts/svg?seed=Arsen",
+        description: "+8% до доходу, +3 гемів. Має унікальний бойовий клич.",
+        soundbite: "Я потужний" 
+    },
+    "Илья": { 
+        id: "pet_ilya",
+        price: 300, 
+        incomeMultiplier: 0.11, 
+        gemsPerPeriod: 4, 
+        asset: "https://api.dicebear.com/7.x/bottts/svg?seed=Ilya",
+        description: "+11% до загального доходу, генерує +4 гемів пасивно.",
+        soundbite: null 
+    },
+    "Артур": { 
+        id: "pet_arthur",
+        price: 500, 
+        incomeMultiplier: 0.20, 
+        gemsPerPeriod: 10, 
+        asset: "image.png", 
+        description: "+20% до загального доходу, максимізує видобуток гемів (+10).",
+        soundbite: null 
+    },
+    "Потужнометр": { 
+        id: "pet_power",
+        price: 1000, 
+        incomeMultiplier: 0.50, 
+        gemsPerPeriod: 20, 
+        asset: "https://api.dicebear.com/7.x/pixel-art/svg?seed=Power",
+        description: "+50% надпотужний буст всього виробництва. Легендарний екземпляр.",
+        soundbite: "Критично високий рівень потужності" 
+    }
+};
+
+const CASE_REGISTRY = {
+    common: { 
+        id: "case_common", 
+        name: "Звичайний ящик", 
+        cost: 300000, 
+        pool: ["Єгор", "Міша", "Илья"],
+        color: "var(--text-muted)"
+    },
+    mythic: { 
+        id: "case_mythic", 
+        name: "Міфічний ящик", 
+        cost: 1000000, 
+        pool: ["Илья", "Арсеній", "Артур"],
+        color: "var(--cyan)"
+    },
+    legend: { 
+        id: "case_legend", 
+        name: "Легендарний ящик", 
+        cost: 5000000, 
+        pool: ["Арсеній", "Артур", "Потужнометр"],
+        color: "var(--gold)"
+    }
+};
+
+const MEME_GALLERY = [
+    "https://i.postimg.cc/7Z6pX0S8/doge.jpg",
+    "https://i.postimg.cc/KjL9tH1Z/pepe.jpg",
+    "https://i.postimg.cc/fyL8p6M7/gigachad.jpg",
+    "https://i.postimg.cc/9f5Y1mPz/grumpy.jpg",
+    "https://i.postimg.cc/T1S0G4Xy/stonks.jpg",
+    "https://i.postimg.cc/vH4vD99B/harold.jpg"
+];
+
+const AVATAR_POOL = ["Doge", "Cyber", "Knight", "Robot", "Alien", "Wizard", "Ninja", "Zombie", "King", "Потужнометр"];
