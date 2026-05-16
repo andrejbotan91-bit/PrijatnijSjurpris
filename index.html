@@ -1038,3 +1038,306 @@ const SoundEngine = {
         window.speechSynthesis.speak(utterance);
     }
 };   
+
+// Продовження модуля UiController
+Object.assign(UiController, {
+    /**
+     * Рендерить картки мемів на вітрині Сток-Ринку.
+     * @param {Array<Object>} currentStock - Масив товарів від MarketGenerator.
+     */
+    renderMarketInterface(currentStock) {
+        const container = document.getElementById('market-rendering-container');
+        container.innerHTML = "";
+
+        currentStock.forEach(lot => {
+            const isSoldOut = lot.availableCount <= 0;
+            const memeImage = MEME_GALLERY[lot.memeId % MEME_GALLERY.length];
+            
+            const cardHtml = `
+                <div class="item-display-card" id="market-lot-${lot.memeId}" style="${isSoldOut ? 'opacity: 0.35;' : ''}">
+                    <div>
+                        <img src="${memeImage}" alt="Meme asset">
+                        <div class="card-title-main">Мем №${lot.memeId}</div>
+                        <div class="card-stat-info">Сток: ${lot.availableCount} / ${lot.initialCount} шт.</div>
+                    </div>
+                    <div>
+                        <button 
+                            class="btn-ui btn-cyan ${isSoldOut ? 'btn-disabled' : ''}" 
+                            onclick="CoreGameEngine.triggerMarketPurchase(${lot.memeId})"
+                            ${isSoldOut ? 'disabled' : ''}>
+                            ${isSoldOut ? 'SOLD OUT' : `$${lot.basePrice.toLocaleString()}`}
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += cardHtml;
+        });
+    },
+
+    /**
+     * Відображає інтерфейс купівлі та відкриття кейсів.
+     */
+    renderCasesShopInterface() {
+        const container = document.getElementById('cases-rendering-container');
+        container.innerHTML = "";
+
+        Object.entries(CASE_REGISTRY).forEach(([caseKey, caseConfig]) => {
+            const joinedPool = caseConfig.pool.join(', ');
+            const blockHtml = `
+                <div class="case-management-block" style="border-color: ${caseConfig.color};">
+                    <div style="font-weight: 800; font-size: 1.1rem; color: ${caseConfig.color}; margin-bottom: 5px;">${caseConfig.name}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">Дроп-лист: ${joinedPool}</div>
+                    <button class="btn-ui btn-pink" style="background: ${caseConfig.color}; color: #000; font-weight: 900;" onclick="CoreGameEngine.triggerCaseOpening('${caseKey}')">
+                        ВІДКРИТИ ЗА $${caseConfig.cost.toLocaleString()}
+                    </button>
+                </div>
+            `;
+            container.innerHTML += blockHtml;
+        });
+    },
+
+    /**
+     * Відображає армію куплених петів гравця з групуванням за кількістю (дублікати).
+     */
+    renderOwnedPetsInterface() {
+        const container = document.getElementById('pets-owned-container');
+        container.innerHTML = "";
+
+        const petsList = GameStateManager.ownedPets;
+
+        if (petsList.length === 0) {
+            container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 30px;">У вас немає активних петів. Скористайтеся кейсами вище!</div>`;
+            return;
+        }
+
+        // Групуємо дублікати петів для компактного відображення
+        const groupedPets = {};
+        petsList.forEach(name => {
+            groupedPets[name] = (groupedPets[name] || 0) + 1;
+        });
+
+        Object.entries(groupedPets).forEach(([petName, count]) => {
+            const petConfig = PET_REGISTRY[petName];
+            if (!petConfig) return;
+
+            const cardHtml = `
+                <div class="item-display-card" onclick="CoreGameEngine.playPetInteractionSound('${petName}')" style="cursor: pointer;">
+                    <div class="army-badge-counter">x${count}</div>
+                    <div>
+                        <img src="${petConfig.asset}" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=${petName}'" alt="Pet">
+                        <div class="card-title-main" style="color: var(--cyan);">${petName}</div>
+                        <div class="card-stat-info" style="color: var(--gem);">+${(petConfig.incomeMultiplier * 100).toFixed(0)}% до доходу</div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += cardHtml;
+        });
+    },
+
+    /**
+     * Відображає всіх користувачів локальної мережі LocalStorage.
+     */
+    renderNetworkNodeList() {
+        const container = document.getElementById('network-users-container');
+        container.innerHTML = "";
+
+        const allUsers = TradeNetwork.fetchAllNetworkNodes();
+
+        allUsers.forEach(user => {
+            const isMe = user.name === GameStateManager.traderName;
+            const nodeHtml = `
+                <div style="background: var(--bg-card); border: 1px solid ${isMe ? 'var(--cyan)' : '#2a2a3a'}; padding: 15px; border-radius: var(--border-radius-md); display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-weight: bold; font-size: 1rem; color: ${isMe ? 'var(--cyan)' : 'white'};">${user.name} ${isMe ? '(Ви)' : ''}</span>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Капітал: $${Math.floor(user.balance).toLocaleString()} | Петів: ${user.pets ? user.pets.length : 0}</div>
+                    </div>
+                    ${!isMe ? `<button class="btn-ui btn-gold" style="width: auto; padding: 8px 16px; font-size: 0.8rem;" onclick="TradeNetwork.initiateTradeWindow('${user.name}')">TRADE</button>` : '<span style="font-size: 0.8rem; color: var(--text-muted);">Вузол активний</span>'}
+                </div>
+            `;
+            container.innerHTML += nodeHtml;
+        });
+    },
+
+    /**
+     * Оновлює виключно текстові HUD показники в шапці гри для високої продуктивності.
+     */
+    updateHudLabels(cash, gems, multiplier, formattedTime) {
+        document.getElementById('hud-cash-display').innerText = Math.floor(cash).toLocaleString();
+        document.getElementById('hud-gems-display').innerText = gems;
+        document.getElementById('hud-multiplier-display').innerText = multiplier.toFixed(2);
+        document.getElementById('hud-timer-display').innerText = formattedTime;
+    }
+});
+
+/**
+ * Головне керуюче ядро гри. Пов'язує всі компоненти в єдиний ігровий цикл.
+ * @namespace CoreGameEngine
+ */
+const CoreGameEngine = {
+    _stockTimerSeconds: CONFIG.STOCK_REFRESH_INTERVAL,
+    _avatarSecretClicks: 0,
+    _avatarSecretTimeout: null,
+
+    /**
+     * Вхідна точка авторизації сесії користувача.
+     */
+    authenticateSession() {
+        const input = document.getElementById('auth-username-field');
+        const username = input.value.trim();
+
+        if (!username) {
+            alert("Помилка! Ідентифікатор трейдера не може бути порожнім.");
+            return;
+        }
+
+        GameStateManager.initializeUserSession(username);
+        
+        // Перемикаємо екрани
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('app-container').style.display = 'grid';
+
+        // Налаштовуємо аватар
+        document.getElementById('hud-user-avatar').src = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${GameStateManager.currentAvatar}`;
+
+        // Генеруємо первинний сток товарів ринку
+        MarketGenerator.generateNewStockSession();
+
+        // Запускаємо головне серце ігрового всесвіту — Game Loop
+        this.runCoreGameplayLoop();
+    },
+
+    /**
+     * Головний тактовий генератор гри (1 тік = 1 секунда).
+     */
+    runCoreGameplayLoop() {
+        setInterval(() => {
+            if (!GameStateManager._state) return;
+
+            const globalMultiplier = GameStateManager.calculateGlobalMultiplier();
+            const baseGps = GameStateManager.calculateBaseGps();
+            
+            // Розрахунок підсумкового пасивного доходу секунди
+            const finalIncomePerSecond = baseGps * globalMultiplier;
+            GameStateManager.modifyCash(finalIncomePerSecond);
+
+            // Пасивна генерація преміум гемів від петів (Шанс 10% кожну секунду)
+            if (Math.random() < 0.10) {
+                let totalGpsGems = 0;
+                GameStateManager.ownedPets.forEach(petName => {
+                    if (PET_REGISTRY[petName]) totalGpsGems += PET_REGISTRY[petName].gemsPerPeriod;
+                });
+                if (totalGpsGems > 0) GameStateManager.modifyGems(totalGpsGems);
+            }
+
+            // Робота з таймером оновлення фондового ринку
+            this._stockTimerSeconds--;
+            if (this._stockTimerSeconds <= 0) {
+                this._stockTimerSeconds = CONFIG.STOCK_REFRESH_INTERVAL;
+                MarketGenerator.generateNewStockSession();
+            }
+
+            // Форматування часу MM:SS
+            const minutes = Math.floor(this._stockTimerSeconds / 60);
+            const seconds = this._stockTimerSeconds % 60;
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            // Оновлюємо інтерфейс верхнього HUD
+            UiController.updateHudLabels(
+                GameStateManager.cashBalance,
+                GameStateManager.gemsBalance,
+                globalMultiplier,
+                formattedTime
+            );
+
+        }, 1000);
+
+        // Додатковий потік для автозбереження стану в бд раз на 2 секунди
+        setInterval(() => {
+            GameStateManager.persistStateToStorage();
+        }, CONFIG.SAVE_INTERVAL);
+    },
+
+    /**
+     * Обробити клік по кнопці покупки лоту мемів.
+     */
+    triggerMarketPurchase(memeId) {
+        const result = MarketGenerator.executeMemePurchase(memeId);
+        if (result === "SUCCESS") {
+            UiController.renderMarketInterface(MarketGenerator.activeStock);
+        } else if (result === "INSUFFICIENT_FUNDS") {
+            alert("Помилка транзакції! У вас недостатньо грошей для придбання цього активу.");
+        }
+    },
+
+    /**
+     * Обробити запит на покупку та відкриття кейсу.
+     */
+    triggerCaseOpening(caseType) {
+        const caseConfig = CASE_REGISTRY[caseType];
+        if (!caseConfig) return;
+
+        if (GameStateManager.cashBalance >= caseConfig.cost) {
+            GameStateManager.modifyCash(-caseConfig.cost);
+            
+            // Рандомізація випадіння відповідно до пулу кейсу
+            const randomPetResult = caseConfig.pool[Math.floor(Math.random() * caseConfig.pool.length)];
+            GameStateManager.addPetToArmy(randomPetResult);
+
+            alert(`🎉 ВІТАЄМО! З ящика випав пет: [ ${randomPetResult} ] ! Його бонуси додані до вашої армії.`);
+            
+            UiController.renderOwnedPetsInterface();
+            this.playPetInteractionSound(randomPetResult);
+        } else {
+            alert("Недостатньо коштів на балансі для розпечатування даного контейнера!");
+        }
+    },
+
+    /**
+     * Відтворює кастомну звукову доріжку або voice-line пета.
+     */
+    playPetInteractionSound(petName) {
+        const config = PET_REGISTRY[petName];
+        if (config && config.soundbite) {
+            SoundEngine.triggerVoiceLine(config.soundbite);
+        }
+    },
+
+    /**
+     * Секретний тригер виклику консолі розробника за 3 швидких тапи по аватару.
+     */
+    handleAvatarSecretTrigger() {
+        this._avatarSecretClicks++;
+        clearTimeout(this._avatarSecretTimeout);
+        
+        if (this._avatarSecretClicks >= 3) {
+            UiController.openModalWindow('admin-modal');
+            this._avatarSecretClicks = 0;
+            return;
+        }
+
+        this._avatarSecretTimeout = setTimeout(() => {
+            this._avatarSecretClicks = 0;
+        }, 1500);
+    },
+
+    /**
+     * Ін'єкція ресурсів через адмін-консоль розробника.
+     */
+    debugInjectResource(type, amount) {
+        if (type === 'cash') GameStateManager.modifyCash(amount);
+        if (type === 'gems') GameStateManager.modifyGems(amount);
+    },
+
+    /**
+     * Термінувати поточну сесію та скинути додаток до екрану авторизації.
+     */
+    terminateSession() {
+        if (confirm("Ви дійсно хочете вийти з вашого облікового запису в локальній мережі?")) {
+            GameStateManager.destroySession();
+            location.reload();
+        }
+    }
+};
+</script>
+</body>
+</html>
