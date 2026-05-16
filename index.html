@@ -617,3 +617,424 @@ const AVATAR_POOL = ["Doge", "Cyber", "Knight", "Robot", "Alien", "Wizard", "Nin
             <button class="navigation-action-trigger" onclick="UiController.switchActiveTab('view-network', this)">Мережа</button>
         </footer>
     </div>    
+
+    /**
+ * Керує станом гри, валідацією транзакцій та персистентністю даних.
+ * @namespace GameStateManager
+ */
+const GameStateManager = {
+    _activeSessionUser: null,
+    _state: null,
+
+    /**
+     * Ініціалізує нову сесію або завантажує наявну з локального сховища.
+     * @param {string} username - Нікнейм користувача.
+     */
+    initializeUserSession(username) {
+        this._activeSessionUser = username;
+        const storageKey = CONFIG.DATABASE_KEY_PREFIX + username;
+        const rawData = localStorage.getItem(storageKey);
+
+        if (rawData) {
+            try {
+                this._state = JSON.parse(rawData);
+                this._sanitizeLoadedState();
+            } catch (e) {
+                console.error("Критична помилка десеріалізації стану. Створення нового профілю.", e);
+                this._generateDefaultState(username);
+            }
+        } else {
+            this._generateDefaultState(username);
+        }
+        
+        this.persistStateToStorage();
+    },
+
+    /**
+     * Генерує дефолтну структуру даних для нового гравця.
+     * @private
+     */
+    _generateDefaultState(username) {
+        this._state = {
+            name: username,
+            balance: 50000,
+            gems: 100,
+            inventory: {}, // Формат: { memeId: count }
+            pets: [],      // Масив рядків (імена петів, дозволені дублікати)
+            avatar: "Doge",
+            unlockedAvatars: ["Doge"],
+            timestampCreated: Date.now()
+        };
+    },
+
+    /**
+     * Перевіряє структуру завантажених даних на збіг з поточною версією архітектури.
+     * @private
+     */
+    _sanitizeLoadedState() {
+        if (!this._state.inventory || Array.isArray(this._state.inventory)) this._state.inventory = {};
+        if (!this._state.pets || !Array.isArray(this._state.pets)) this._state.pets = [];
+        if (typeof this._state.balance !== 'number' || isNaN(this._state.balance)) this._state.balance = 0;
+        if (typeof this._state.gems !== 'number' || isNaN(this._state.gems)) this._state.gems = 0;
+    },
+
+    /**
+     * Синхронізує поточний стан з локальним сховищем.
+     */
+    persistStateToStorage() {
+        if (!this._activeSessionUser || !this._state) return;
+        localStorage.setItem(
+            CONFIG.DATABASE_KEY_PREFIX + this._activeSessionUser, 
+            JSON.stringify(this._state)
+        );
+    },
+
+    // Геттери та Сеттери з вбудованою бізнес-логікою перевірок
+    get traderName() { return this._state ? this._state.name : ''; },
+    get cashBalance() { return this._state ? this._state.balance : 0; },
+    get gemsBalance() { return this._state ? this._state.gems : 0; },
+    get currentAvatar() { return this._state ? this._state.avatar : 'Doge'; },
+    get ownedPets() { return this._state ? this._state.pets : []; },
+    get memeInventory() { return this._state ? this._state.inventory : {}; },
+
+    /**
+     * Нараховує або знімає ігрову валюту (Cash).
+     * @param {number} amount - Кількість (може бути від'ємною).
+     * @returns {boolean} Успішність операції.
+     */
+    modifyCash(amount) {
+        if (amount < 0 && this._state.balance + amount < 0) return false;
+        this._state.balance += amount;
+        return true;
+    },
+
+    /**
+     * Нараховує або знімає преміум валюту (Gems).
+     * @param {number} amount - Кількість.
+     * @returns {boolean} Успішність операції.
+     */
+    modifyGems(amount) {
+        if (amount < 0 && this._state.gems + amount < 0) return false;
+        this._state.gems += amount;
+        return true;
+    },
+
+    /**
+     * Розраховує поточний загальний множник прибутку на основі армії петів.
+     * @returns {number} Загальний мультиплікатор.
+     */
+    calculateGlobalMultiplier() {
+        let multiplier = CONFIG.BASE_CLICK_MULTIPLIER;
+        if (!this._state || !this._state.pets) return multiplier;
+        
+        this._state.pets.forEach(petName => {
+            const petConfig = PET_REGISTRY[petName];
+            if (petConfig) {
+                multiplier += petConfig.incomeMultiplier;
+            }
+        });
+        return multiplier;
+    },
+
+    /**
+     * Розраховує базовий пасивний дохід від усіх мемів в інвентарі в секунду.
+     * @returns {number} Дохід за секунду (Base GPS).
+     */
+    calculateBaseGps() {
+        let baseGps = 0;
+        if (!this._state || !this._state.inventory) return baseGps;
+
+        for (const [memeId, count] of Object.entries(this._state.inventory)) {
+            const numericId = parseInt(memeId, 10);
+            if (!isNaN(numericId)) {
+                // Кожен мем генерує дохід пропорційно своєму унікальному номеру
+                baseGps += numericId * 5 * count;
+            }
+        }
+        return baseGps;
+    },
+
+    /**
+     * Додає купленого або вибитого з кейсу пета до армії.
+     * @param {string} petName - Ім'я пета.
+     */
+    addPetToArmy(petName) {
+        if (!PET_REGISTRY[petName]) return;
+        this._state.pets.push(petName);
+        this.persistStateToStorage();
+    },
+
+    /**
+     * Додає одиницю мему до інвентаря гравця.
+     * @param {number} memeId - Унікальний ідентифікатор мему.
+     */
+    addMemeToInventory(memeId) {
+        this._state.inventory[memeId] = (this._state.inventory[memeId] || 0) + 1;
+        this.persistStateToStorage();
+    },
+
+    /**
+     * Очищує сесію та виконує логаут.
+     */
+    destroySession() {
+        this.persistStateToStorage();
+        this._activeSessionUser = null;
+        this._state = null;
+    }
+};
+
+ /**
+ * Модуль генерації та контролю лімітів фондового сток-ринку мемів.
+ * @namespace MarketGenerator
+ */
+const MarketGenerator = {
+    _currentActiveStock: [],
+    _refreshCyclesCount: 0,
+
+    /**
+     * Запускає повну процедуру регенерації ринкових лотів.
+     * Реалізує суворі ліміти кількості та правила рідкості предметів.
+     */
+    generateNewStockSession() {
+        this._currentActiveStock = [];
+        this._refreshCyclesCount++;
+
+        const activeLotIds = new Set();
+
+        // Ексклюзивний алгоритм для лоту №50: гарантована поява кожні 5 циклів (15 хвилин)
+        if (this._refreshCyclesCount % 5 === 0) {
+            const guaranteedLotCount = Math.floor(Math.random() * 5) + 1; // Від 1 до 5 штук
+            this._currentActiveStock.push({
+                memeId: 50,
+                availableCount: guaranteedLotCount,
+                initialCount: guaranteedLotCount,
+                basePrice: 50 * 450
+            });
+            activeLotIds.add(50);
+        }
+
+        // Заповнюємо вітрину магазину до 10 унікальних лотів
+        while (this._currentActiveStock.length < 10) {
+            const generatedId = Math.floor(Math.random() * 200) + 1;
+
+            // Запобігаємо дублюванню однакових номерів мемів в одному заводі
+            if (activeLotIds.has(generatedId)) continue;
+
+            let allowedStockLimit = 0;
+
+            // Диференціація лімітів кількості товарів відповідно до діапазонів ID
+            if (generatedId <= 50) {
+                allowedStockLimit = Math.floor(Math.random() * 5) + 1; // Часті: від 1 до 5
+            } else if (generatedId <= 100) {
+                allowedStockLimit = Math.floor(Math.random() * 3) + 1; // Незвичайні: від 1 до 3
+            } else if (generatedId <= 150) {
+                allowedStockLimit = Math.floor(Math.random() * 2) + 1; // Рідкісні: від 1 до 2
+            } else {
+                allowedStockLimit = 1; // Легендарні (ID 151-200): не більше 1 шт.
+            }
+
+            // Масштабування ціни: чим вищий ID, тим дорожчий і прибутковіший актив
+            const computedPrice = generatedId * 450;
+
+            this._currentActiveStock.push({
+                memeId: generatedId,
+                availableCount: allowedStockLimit,
+                initialCount: allowedStockLimit,
+                basePrice: computedPrice
+            });
+
+            activeLotIds.add(generatedId);
+        }
+
+        // Сортуємо лоти за зростанням ID для красивого візуального відображення в інтерфейсі
+        this._currentActiveStock.sort((alpha, beta) => alpha.memeId - beta.memeId);
+        
+        // Викликаємо реактивне оновлення рендерингу інтерфейсу ринку
+        UiController.renderMarketInterface(this._currentActiveStock);
+    },
+
+    /**
+     * Обробити запит на покупку мем-активу з поточного стоку.
+     * @param {number} memeId - Ідентифікатор мему, що купується.
+     * @returns {string} Статус-код завершення транзакції.
+     */
+    executeMemePurchase(memeId) {
+        const targetLot = this._currentActiveStock.find(lot => lot.memeId === memeId);
+
+        if (!targetLot) return "LOT_NOT_FOUND";
+        if (targetLot.availableCount <= 0) return "OUT_OF_STOCK";
+
+        // Перевірка фінансової спроможності гравця через менеджер стану
+        if (GameStateManager.cashBalance < targetLot.basePrice) return "INSUFFICIENT_FUNDS";
+
+        // Проведення транзакції та списання балансу
+        GameStateManager.modifyCash(-targetLot.basePrice);
+        GameStateManager.addMemeToInventory(memeId);
+        
+        // Декрементуємо залишок товару в поточному стоці
+        targetLot.availableCount--;
+
+        // Повертаємо успішний статус для UI-тригерів
+        return "SUCCESS";
+    },
+
+    /**
+     * Повертає поточний масив лотів на ринку.
+     * @returns {Array} Active Stock.
+     */
+    get activeStock() {
+        return this._currentActiveStock;
+    }
+};
+
+/**
+ * Керує звуковими ефектами, синтезом мовлення та голосовими лініями петів.
+ * @namespace SoundEngine
+ */
+const SoundEngine = {
+    /**
+     * Використовує Web Speech API для озвучування кастомних фраз унікальних петів.
+     * @param {string} textToSpeak - Текст для вимови.
+     */
+    triggerVoiceLine(textToSpeak) {
+        if (!textToSpeak || !('speechSynthesis' in window)) return;
+        
+        // Зупиняємо попереднє мовлення, щоб звуки не накладалися один на одного
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'uk-UA';
+        utterance.pitch = 0.85; // Трохи занижений пітч для солідності мем-звуку
+        utterance.rate = 0.95;
+
+        window.speechSynthesis.speak(utterance);
+    }
+};   
+
+ /**
+ * Модуль генерації та контролю лімітів фондового сток-ринку мемів.
+ * @namespace MarketGenerator
+ */
+const MarketGenerator = {
+    _currentActiveStock: [],
+    _refreshCyclesCount: 0,
+
+    /**
+     * Запускає повну процедуру регенерації ринкових лотів.
+     * Реалізує суворі ліміти кількості та правила рідкості предметів.
+     */
+    generateNewStockSession() {
+        this._currentActiveStock = [];
+        this._refreshCyclesCount++;
+
+        const activeLotIds = new Set();
+
+        // Ексклюзивний алгоритм для лоту №50: гарантована поява кожні 5 циклів (15 хвилин)
+        if (this._refreshCyclesCount % 5 === 0) {
+            const guaranteedLotCount = Math.floor(Math.random() * 5) + 1; // Від 1 до 5 штук
+            this._currentActiveStock.push({
+                memeId: 50,
+                availableCount: guaranteedLotCount,
+                initialCount: guaranteedLotCount,
+                basePrice: 50 * 450
+            });
+            activeLotIds.add(50);
+        }
+
+        // Заповнюємо вітрину магазину до 10 унікальних лотів
+        while (this._currentActiveStock.length < 10) {
+            const generatedId = Math.floor(Math.random() * 200) + 1;
+
+            // Запобігаємо дублюванню однакових номерів мемів в одному заводі
+            if (activeLotIds.has(generatedId)) continue;
+
+            let allowedStockLimit = 0;
+
+            // Диференціація лімітів кількості товарів відповідно до діапазонів ID
+            if (generatedId <= 50) {
+                allowedStockLimit = Math.floor(Math.random() * 5) + 1; // Часті: від 1 до 5
+            } else if (generatedId <= 100) {
+                allowedStockLimit = Math.floor(Math.random() * 3) + 1; // Незвичайні: від 1 до 3
+            } else if (generatedId <= 150) {
+                allowedStockLimit = Math.floor(Math.random() * 2) + 1; // Рідкісні: від 1 до 2
+            } else {
+                allowedStockLimit = 1; // Легендарні (ID 151-200): не більше 1 шт.
+            }
+
+            // Масштабування ціни: чим вищий ID, тим дорожчий і прибутковіший актив
+            const computedPrice = generatedId * 450;
+
+            this._currentActiveStock.push({
+                memeId: generatedId,
+                availableCount: allowedStockLimit,
+                initialCount: allowedStockLimit,
+                basePrice: computedPrice
+            });
+
+            activeLotIds.add(generatedId);
+        }
+
+        // Сортуємо лоти за зростанням ID для красивого візуального відображення в інтерфейсі
+        this._currentActiveStock.sort((alpha, beta) => alpha.memeId - beta.memeId);
+        
+        // Викликаємо реактивне оновлення рендерингу інтерфейсу ринку
+        UiController.renderMarketInterface(this._currentActiveStock);
+    },
+
+    /**
+     * Обробити запит на покупку мем-активу з поточного стоку.
+     * @param {number} memeId - Ідентифікатор мему, що купується.
+     * @returns {string} Статус-код завершення транзакції.
+     */
+    executeMemePurchase(memeId) {
+        const targetLot = this._currentActiveStock.find(lot => lot.memeId === memeId);
+
+        if (!targetLot) return "LOT_NOT_FOUND";
+        if (targetLot.availableCount <= 0) return "OUT_OF_STOCK";
+
+        // Перевірка фінансової спроможності гравця через менеджер стану
+        if (GameStateManager.cashBalance < targetLot.basePrice) return "INSUFFICIENT_FUNDS";
+
+        // Проведення транзакції та списання балансу
+        GameStateManager.modifyCash(-targetLot.basePrice);
+        GameStateManager.addMemeToInventory(memeId);
+        
+        // Декрементуємо залишок товару в поточному стоці
+        targetLot.availableCount--;
+
+        // Повертаємо успішний статус для UI-тригерів
+        return "SUCCESS";
+    },
+
+    /**
+     * Повертає поточний масив лотів на ринку.
+     * @returns {Array} Active Stock.
+     */
+    get activeStock() {
+        return this._currentActiveStock;
+    }
+};
+
+/**
+ * Керує звуковими ефектами, синтезом мовлення та голосовими лініями петів.
+ * @namespace SoundEngine
+ */
+const SoundEngine = {
+    /**
+     * Використовує Web Speech API для озвучування кастомних фраз унікальних петів.
+     * @param {string} textToSpeak - Текст для вимови.
+     */
+    triggerVoiceLine(textToSpeak) {
+        if (!textToSpeak || !('speechSynthesis' in window)) return;
+        
+        // Зупиняємо попереднє мовлення, щоб звуки не накладалися один на одного
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'uk-UA';
+        utterance.pitch = 0.85; // Трохи занижений пітч для солідності мем-звуку
+        utterance.rate = 0.95;
+
+        window.speechSynthesis.speak(utterance);
+    }
+};   
